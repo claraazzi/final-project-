@@ -1,0 +1,56 @@
+void initialise() {
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    g_display_window = SDL_CreateWindow(GAME_WINDOW_NAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
+    SDL_GLContext context = SDL_GL_CreateContext(g_display_window);
+    SDL_GL_MakeCurrent(g_display_window, context);
+    if (context == nullptr) {
+        LOG("ERROR: Could not create OpenGL context.\n");
+        shutdown();
+    }
+#ifdef _WINDOWS
+    glewInit();
+#endif
+    glViewport(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+    g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
+    g_view_matrix = glm::mat4(1.0f);
+    g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
+    g_shader_program.set_projection_matrix(g_projection_matrix);
+    g_shader_program.set_view_matrix(g_view_matrix);
+    glUseProgram(g_shader_program.get_program_id());
+    glClearColor(BG_RED, BG_BLUE, BG_GREEN, BG_OPACITY);
+    
+    GLuint map_texture_id = load_texture(MAP_TILESET_FILEPATH);
+    g_game_state.map = new Map(LEVEL1_WIDTH, LEVEL1_HEIGHT, LEVEL_1_DATA, map_texture_id, 1.0f, 2, 2);
+
+    GLuint player_texture_id = load_texture(SPRITESHEET_FILEPATH);
+    int player_walking_animation[4][4] = { { 1, 5, 9, 13 }, { 3, 7, 11, 15 }, { 2, 6, 10, 14 }, { 0, 4, 8, 12 } };
+    glm::vec3 acceleration = glm::vec3(0.0f, -4.905f, 0.0f);
+
+    g_game_state.player = new Entity(player_texture_id, 5.0f, acceleration, 3.0f, player_walking_animation, 0.0f, 4, 0, 4, 4, 0.9f, 0.9f, PLAYER);
+    g_game_state.player->set_jumping_power(5.0f);
+
+    Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+    g_game_state.bgm = Mix_LoadMUS(BGM_FILEPATH);
+    g_game_state.jump_sfx = Mix_LoadWAV(JUMP_SFX_FILEPATH);
+
+    // ————— ENEMY SET-UP ————— //
+    GLuint enemy_texture_id = load_texture("assets/images/enemy.png");
+    g_game_state.enemies = new Entity[ENEMY_COUNT];
+
+    // Set up each enemy with a small range of motion
+    g_game_state.enemies[0] = Entity(enemy_texture_id, 1.0f, 0.5f, 0.5f, ENEMY, SPINNER, IDLE); // Spinning enemy
+    g_game_state.enemies[1] = Entity(enemy_texture_id, 1.0f, 0.5f, 0.5f, ENEMY, VERTICAL_MOVER, WALKING); // Vertical mover
+    g_game_state.enemies[2] = Entity(enemy_texture_id, 1.0f, 0.5f, 0.5f, ENEMY, HORIZONTAL_MOVER, WALKING); // Horizontal mover
+
+    // Adjust initial positions for visibility
+    g_game_state.enemies[0].set_position(glm::vec3(2.0f, -1.0f, 0.0f)); // Spinner
+    g_game_state.enemies[1].set_position(glm::vec3(4.0f, 0.5f, 0.0f)); // Vertical mover
+    g_game_state.enemies[2].set_position(glm::vec3(0.0f, -1.5f, 0.0f)); // Horizontal mover, within view
+
+    // Set initial velocity to move within small bounds
+    g_game_state.enemies[1].set_velocity(glm::vec3(0.0f, 0.5f, 0.0f)); // Vertical movement
+    g_game_state.enemies[2].set_velocity(glm::vec3(0.5f, 0.0f, 0.0f)); // Horizontal movement
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
